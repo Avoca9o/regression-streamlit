@@ -125,37 +125,55 @@ with st.expander("Показать распределение весов"):
 
 with st.expander("Ввести данные вручную"):
     name = st.text_input("Название автомобиля")
-    year = st.number_input("Год выпуска")
-    km_driven = st.number_input("Пробег, км", min_value=0)
-    fuel = st.selectbox("Тип топлива", ["Diesel", "Petrol", "CNG", "LPG", "Electric"])
-    seller_type = st.selectbox("Тип продавца", ["Individual", "Dealer", "Trustmark Dealer"])
-    transmission = st.selectbox("Трансмиссия", ["Manual", "Automatic"])
-    owner = st.selectbox("Владелец", ["First Owner", "Second Owner", "Third Owner", "Fourth & Above Owner", "Test Drive Car"])
-    mileage = st.text_input("Пробег (mileage), например '20 kmpl'", "")
-    engine = st.text_input("Объем двигателя, например '1248 CC'", "")
-    max_power = st.text_input("Максимальная мощность, например '74 bhp'", "")
-    torque = st.text_input("Крутящий момент (torque), например '190Nm@ 2000rpm'", "")
-    seats = st.number_input("Количество мест", min_value=1.0)
+    year = st.number_input("Год выпуска", min_value=1900, format="%d")
+    km_driven = st.number_input("Пробег, км", min_value=0, format="%d")
+    fuel = st.selectbox("Тип топлива", ["", "Diesel", "Petrol", "CNG", "LPG", "Electric"])
+    seller_type = st.selectbox("Тип продавца", ["", "Individual", "Dealer", "Trustmark Dealer"])
+    transmission = st.selectbox("Трансмиссия", ["", "Manual", "Automatic"])
+    owner = st.selectbox("Владелец", ["", "First Owner", "Second Owner", "Third Owner", "Fourth & Above Owner", "Test Drive Car"])
+    mileage = st.text_input("Пробег (mileage), например '20 kmpl'")
+    engine = st.text_input("Объем двигателя, например '1248 CC'")
+    max_power = st.text_input("Максимальная мощность, например '74 bhp'")
+    torque = st.text_input("Крутящий момент (torque), например '190Nm@ 2000rpm'")
+    seats = st.number_input("Количество мест", min_value=1.0, step=1.0, format="%.0f")
 
-    user_input = pd.DataFrame([{
-        "name": name,
-        "year": year,
-        "km_driven": km_driven,
-        "fuel": fuel,
-        "seller_type": seller_type,
-        "transmission": transmission,
-        "owner": owner,
-        "mileage": mileage,
-        "engine": engine,
-        "max_power": max_power,
-        "torque": torque,
-        "seats": seats
-    }], columns=columns)
+    required_fields_filled = (
+        name.strip() != "" and
+        str(year).strip() != "" and year is not None and
+        str(km_driven).strip() != "" and km_driven is not None and
+        fuel.strip() != "" and
+        seller_type.strip() != "" and
+        transmission.strip() != "" and
+        owner.strip() != "" and
+        mileage.strip() != "" and
+        engine.strip() != "" and
+        max_power.strip() != "" and
+        torque.strip() != "" and
+        str(seats).strip() != "" and seats is not None
+    )
 
-    if st.button("Предсказать цену"):
-        user_input_transformed = preprocessing_pipeline.transform(user_input)
-        prediction = model.predict(user_input_transformed)
-        st.write(f"Предсказанная цена: {prediction[0]:.2f}")
+    if not required_fields_filled:
+        st.warning("Пожалуйста, заполните все обязательные параметры, чтобы предсказать цену")
+    else:
+        user_input = pd.DataFrame([{
+            "name": name,
+            "year": year,
+            "km_driven": km_driven,
+            "fuel": fuel,
+            "seller_type": seller_type,
+            "transmission": transmission,
+            "owner": owner,
+            "mileage": mileage,
+            "engine": engine,
+            "max_power": max_power,
+            "torque": torque,
+            "seats": seats
+        }], columns=columns)
+
+        if st.button("Предсказать цену"):
+            user_input_transformed = preprocessing_pipeline.transform(user_input)
+            prediction = model.predict(user_input_transformed)
+            st.write(f"Предсказанная цена: {prediction[0]:.2f}")
 
 with st.expander("Загрузить данные из файла (файл из ДЗ: https://raw.githubusercontent.com/Murcha1990/MLDS_ML_2022/main/Hometasks/HT1/cars_train.csv)"):
     uploaded_file = st.file_uploader("Выберите файл", type="csv")
