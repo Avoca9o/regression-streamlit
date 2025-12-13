@@ -5,97 +5,17 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from sklearn.base import BaseEstimator, TransformerMixin
-
-class MeasuredFeatureCleaner(BaseEstimator, TransformerMixin):
-    def __init__(self):
-        pass
-
-    def fit(self, X, y=None):
-        return self
-
-    def transform(self, X):
-        X_copy = X.copy()
-        for col in ['mileage', 'engine', 'max_power']:
-            X_copy[col] = X_copy[col].apply(self._handle_measured)
-        print('Measured features cleaned')
-        return X_copy
-
-    def _handle_measured(self, s):
-        if pd.isnull(s) or pd.isna(s):
-            return np.nan
-        digits_and_dots = [c for c in s if c.isdigit() or c == '.']
-        return float(''.join(digits_and_dots)) if digits_and_dots else np.nan
-
-class TorqueFeatureExtractor(BaseEstimator, TransformerMixin):
-    def __init__(self):
-        pass
-
-    def fit(self, X, y=None):
-        return self
-
-    def transform(self, X):
-        X_copy = X.copy()
-
-        X_copy['torque'] = X_copy['torque'].apply(self._get_torque)
-        X_copy['max_torque_rpm'] = X_copy['torque'].apply(self._get_max_torque_rpm)
-
-        print('Torque and max_torque_rpm extracted')
-
-        return X_copy
-
-    def _get_torque(self, s):
-        if pd.isnull(s) or pd.isna(s):
-            return np.nan
-        first_float_str = ''
-        for i in range(len(s)):
-            if s[i].isdigit() or s[i] == '.':
-                first_float_str += s[i]
-            elif len(first_float_str) > 0:
-                break
-        if 'kgm' in str(s).lower():
-            return float(first_float_str) * 9.80665 if first_float_str else np.nan
-        return float(first_float_str) if first_float_str else np.nan
-
-    def _get_max_torque_rpm(self, s):
-        if pd.isnull(s) or pd.isna(s):
-            return np.nan
-        last_float_str = ''
-        s_str = str(s)
-        for i in range(len(s_str)):
-            char = s_str[-i - 1]
-            if char.isdigit() or char == '.':
-                last_float_str += char
-            elif len(last_float_str) > 0:
-                break
-        return float(last_float_str) if last_float_str else np.nan
-
-class NAFillerTransformer(BaseEstimator, TransformerMixin):
-
-    def __init__(self):
-        self.columns = ['mileage', 'engine', 'max_power', 'torque', 'max_torque_rpm', 'seats']
-
-    def fit(self, X, y=None):
-        return self
-
-    def transform(self, X):
-        X_copy = X.copy()
-        for col in self.columns:
-            X_copy[col] = X_copy[col].fillna(X_copy[col].median())
-        X_copy['seats'] = X_copy['seats'].astype(int)
-        X_copy['engine'] = X_copy['engine'].astype(int)
-        X_copy = X_copy.drop('name', axis=1) # слишком сложно реализовывать, смысл задания явно больше в том, чтобы попробовать streamlit/pickle, я уже показал, что умею кастомные трансформеры писать, можно не буду возиться с именем, пожалуйста
-        print('NA features filled')
-        return X_copy
-
+from transformers import NAFillerTransformer, TorqueFeatureExtractor, MeasuredFeatureCleaner
 
 st.title("Car price prediction")
 
-with open('model.pkl', 'rb') as f:
-    model = pickle.load(f)
+def load_pickle_obj(file_path):
+    with open(file_path, 'rb') as f:
+        obj = pickle.load(f)
+    return obj
 
-with open('preprocessing_pipeline.pkl', 'rb') as f:
-    preprocessing_pipeline = pickle.load(f)
+model = load_pickle_obj('model.pkl')
+preprocessing_pipeline = load_pickle_obj('preprocessing_pipeline.pkl')
 
 coefficients = np.ravel(model.coef_)
 
@@ -171,15 +91,23 @@ with st.expander("Ввести данные вручную"):
         }], columns=columns)
 
         if st.button("Предсказать цену"):
-            user_input_transformed = preprocessing_pipeline.transform(user_input)
-            prediction = model.predict(user_input_transformed)
-            st.write(f"Предсказанная цена: {prediction[0]:.2f}")
+            try:
+                user_input_transformed = preprocessing_pipeline.transform(user_input)
+                prediction = model.predict(user_input_transformed)
+                st.write(f"Предсказанная цена: {prediction[0]:.2f}")
+            except AttributeError as e:
+                if "'str' object has no attribute 'transform'" in str(e):
+                    st.error("Ошибка: объект preprocessing_pipeline оказался строкой. Проверьте файл preprocessing_pipeline.pkl — возможно он некорректно сохранён. Загрузите корректный сериализованный пайплайн.")
+                else:
+                    st.error(f"Ошибка при предобработке или предсказании: {e}")
+            except Exception as e:
+                st.error(f"Ошибка при предобработке или предсказании: {e}")
 
 with st.expander("Загрузить данные из файла (файл из ДЗ: https://raw.githubusercontent.com/Murcha1990/MLDS_ML_2022/main/Hometasks/HT1/cars_train.csv)"):
     uploaded_file = st.file_uploader("Выберите файл", type="csv")
     if uploaded_file is not None:
         df = pd.read_csv(uploaded_file)
-        with st.expander("Визуализировать мои данные"):
+        if st.button("Визуализировать мои данные"):
             st.write(df.head())
             num_duplicates = df.duplicated().sum()
             st.write(f"Количество дубликатов в файле: {num_duplicates}")
@@ -200,7 +128,6 @@ with st.expander("Загрузить данные из файла (файл из
                 plt.tight_layout()
                 st.pyplot(plt)
 
-            # Дополнительная кнопка для построения матрицы корреляций
             if st.button("Показать матрицу корреляций числовых признаков"):
                 corr_matrix = df.select_dtypes(include=[np.number]).corr()
                 plt.figure(figsize=(12, 8))
@@ -209,13 +136,19 @@ with st.expander("Загрузить данные из файла (файл из
                 plt.tight_layout()
                 st.pyplot(plt)
 
-        user_input_transformed = preprocessing_pipeline.transform(df)
-        predictions = model.predict(user_input_transformed)
-        df_results = pd.DataFrame({"predicted_selling_price": predictions})
-        csv = df_results.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="Скачать предсказанный .csv файл",
-            data=csv,
-            file_name="predictions.csv",
-            mime='text/csv',
-        )
+        try:
+            st.write(f"Тип preprocessing_pipeline: {type(preprocessing_pipeline)}")
+            if isinstance(preprocessing_pipeline, str):
+                raise AttributeError("'str' object has no attribute 'transform'")
+            user_input_transformed = preprocessing_pipeline.transform(df)
+            predictions = model.predict(user_input_transformed)
+            df_results = pd.DataFrame({"predicted_selling_price": predictions})
+            csv = df_results.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="Скачать предсказанный .csv файл",
+                data=csv,
+                file_name="predictions.csv",
+                mime='text/csv',
+            )
+        except Exception as e:
+            st.error(f"Ошибка при предобработке или предсказании для файла: {e}")
