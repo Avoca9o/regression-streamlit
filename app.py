@@ -107,34 +107,33 @@ with st.expander("Загрузить данные из файла (файл из
     uploaded_file = st.file_uploader("Выберите файл", type="csv")
     if uploaded_file is not None:
         df = pd.read_csv(uploaded_file)
-        if st.button("Визуализировать мои данные"):
-            st.write(df.head())
-            num_duplicates = df.duplicated().sum()
-            st.write(f"Количество дубликатов в файле: {num_duplicates}")
+        st.write(df.head())
+        num_duplicates = df.duplicated().sum()
+        st.write(f"Количество дубликатов в файле: {num_duplicates}")
 
-            selected_col = st.selectbox(
-                "Выберите колонку для гистограммы", 
-                options=columns
-            )
-            if st.button("Построить гистограмму"):
-                data = df[selected_col]
-                plt.figure(figsize=(5, 3))
-                if pd.api.types.is_numeric_dtype(data):
-                    plt.hist(data.dropna(), bins=20)
-                else:
-                    data.value_counts().plot(kind='bar')
-                    plt.xticks(rotation=90)
-                plt.title(selected_col)
-                plt.tight_layout()
-                st.pyplot(plt)
+        selected_col = st.selectbox(
+            "Выберите колонку для гистограммы", 
+            options=columns
+        )
+        if st.button("Построить гистограмму"):
+            data = df[selected_col]
+            plt.figure(figsize=(5, 3))
+            if pd.api.types.is_numeric_dtype(data):
+                plt.hist(data.dropna(), bins=20)
+            else:
+                data.value_counts().plot(kind='bar')
+                plt.xticks(rotation=90)
+            plt.title(selected_col)
+            plt.tight_layout()
+            st.pyplot(plt)
 
-            if st.button("Показать матрицу корреляций числовых признаков"):
-                corr_matrix = df.select_dtypes(include=[np.number]).corr()
-                plt.figure(figsize=(12, 8))
-                sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', vmin=-1, vmax=1)
-                plt.title("Корреляционная матрица")
-                plt.tight_layout()
-                st.pyplot(plt)
+        if st.button("Показать матрицу корреляций числовых признаков"):
+            corr_matrix = df.select_dtypes(include=[np.number]).corr()
+            plt.figure(figsize=(12, 8))
+            sns.heatmap(corr_matrix, annot=True, cmap='coolwarm', vmin=-1, vmax=1)
+            plt.title("Корреляционная матрица")
+            plt.tight_layout()
+            st.pyplot(plt)
 
         try:
             st.write(f"Тип preprocessing_pipeline: {type(preprocessing_pipeline)}")
